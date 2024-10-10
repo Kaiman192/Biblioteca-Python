@@ -1,258 +1,276 @@
-import sqlite3
 import tkinter as tk
-from tkinter import messagebox, simpledialog, Frame, Scrollbar, Canvas, ttk
+from tkinter import messagebox, simpledialog, scrolledtext
+import os
 
-def create_connection(db_file):
-    conn = sqlite3.connect(db_file)
-    return conn
+# Função para carregar os usuários existentes do arquivo
+def carregar_usuarios():
+    usuarios = {}
+    if os.path.exists('usuarios.txt'):
+        with open('usuarios.txt', 'r') as f:
+            for line in f:
+                username, password = line.strip().split(',')
+                usuarios[username] = password
+    return usuarios
 
-def create_tables(conn):
-    cursor = conn.cursor()
-    cursor.execute('DROP TABLE IF EXISTS Livros')
-    cursor.execute('DROP TABLE IF EXISTS Autores')
-    
-    cursor.execute('''
-        CREATE TABLE Autores (
-            ID INTEGER PRIMARY KEY AUTOINCREMENT,
-            Nome TEXT NOT NULL
-        )
-    ''')
+# Função para salvar um novo usuário no arquivo
+def salvar_usuario(username, password):
+    with open('usuarios.txt', 'a') as f:
+        f.write(f"{username},{password}\n")
 
-    cursor.execute('''
-        CREATE TABLE Livros (
-            ID INTEGER PRIMARY KEY AUTOINCREMENT,
-            Titulo TEXT NOT NULL,
-            AutorID INTEGER,
-            AnoPublicacao INTEGER,
-            Genero TEXT,
-            Sinopse TEXT,
-            FOREIGN KEY (AutorID) REFERENCES Autores(ID)
-        )
-    ''')
-    conn.commit()
+class Biblioteca:
+    def __init__(self, master):
+        self.master = master
+        master.title("Sistema de Gerenciamento de Biblioteca")
+        master.geometry("800x600")  # Ajustei o tamanho da janela para ser mais prático
 
-def add_livro(conn, titulo, autor_id, ano_publicacao, genero, sinopse):
-    cursor = conn.cursor()
-    try:
-        cursor.execute('INSERT INTO Livros (Titulo, AutorID, AnoPublicacao, Genero, Sinopse) VALUES (?, ?, ?, ?, ?)',
-                       (titulo, autor_id, ano_publicacao, genero, sinopse))
-        conn.commit()
-        messagebox.showinfo("Sucesso", "Livro adicionado com sucesso!")
-    except sqlite3.Error as e:
-        messagebox.showerror("Erro", str(e))
+        # Tela de Login
+        self.login_screen()
 
-def add_autor(conn, nome):
-    cursor = conn.cursor()
-    try:
-        cursor.execute('INSERT INTO Autores (Nome) VALUES (?)', (nome,))
-        conn.commit()
-        messagebox.showinfo("Sucesso", "Autor adicionado com sucesso!")
-    except sqlite3.Error as e:
-        messagebox.showerror("Erro", str(e))
+        # Lista de livros e empréstimos
+        self.books = []
+        self.borrowed_books = []
 
-def display_livros(livros, title):
-    list_window = tk.Toplevel()
-    list_window.title(title)
-    list_window.geometry("400x400")
+    def login_screen(self):
+        # Limpa o conteúdo da janela principal
+        for widget in self.master.winfo_children():
+            widget.destroy()
 
-    canvas = Canvas(list_window)
-    scroll_y = Scrollbar(list_window, orient="vertical", command=canvas.yview)
-    scrollable_frame = Frame(canvas)
+        # Título
+        self.label = tk.Label(self.master, text="Bem-vinda à Biblioteca", font=("Arial", 24))
+        self.label.pack(pady=20)
 
-    scrollable_frame.bind(
-        "<Configure>",
-        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-    )
+        # Nome de usuário
+        self.label_user = tk.Label(self.master, text="Nome de Usuário:", font=("Arial", 12))
+        self.label_user.pack(pady=5)
+        self.entry_user = tk.Entry(self.master, font=("Arial", 12))
+        self.entry_user.pack(pady=5)
 
-    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        # Senha
+        self.label_pass = tk.Label(self.master, text="Senha:", font=("Arial", 12))
+        self.label_pass.pack(pady=5)
+        self.entry_pass = tk.Entry(self.master, font=("Arial", 12), show="*")
+        self.entry_pass.pack(pady=5)
 
-    def on_mouse_wheel(event):
-        canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        # Botão de Login
+        self.btn_login = tk.Button(self.master, text="Login", command=self.login, width=20, height=2, font=("Arial", 12))
+        self.btn_login.pack(pady=10)
 
-    list_window.bind_all("<MouseWheel>", on_mouse_wheel)
+    def login(self):
+        # Verifica se o usuário e a senha estão corretos
+        username = self.entry_user.get()
+        password = self.entry_pass.get()
+        usuarios = carregar_usuarios()
 
-    for livro in livros:
-        livro_frame = Frame(scrollable_frame, bd=2, relief="groove", padx=10, pady=10)
-        livro_frame.pack(pady=5, fill='x')
-        tk.Label(livro_frame, text=f'Título: {livro[0]}', font=("Arial", 12)).pack()
-        tk.Label(livro_frame, text=f'Autor: {livro[1]}', font=("Arial", 10)).pack()
-        tk.Label(livro_frame, text=f'Ano: {livro[2]}', font=("Arial", 10)).pack()
-        tk.Label(livro_frame, text=f'Gênero: {livro[3]}', font=("Arial", 10)).pack()
-        tk.Label(livro_frame, text=f'Sinopse: {livro[4]}', font=("Arial", 10)).pack()
+        if username in usuarios and usuarios[username] == password:
+            self.main_screen()  # Se o login for bem-sucedido, vai para a tela principal
+        else:
+            messagebox.showerror("Erro", "Nome de usuário ou senha incorretos.")
 
-    canvas.configure(yscrollcommand=scroll_y.set)
-    scroll_y.pack(side="right", fill="y")
-    canvas.pack(side="left", fill="both", expand=True)
+    def main_screen(self):
+        # Limpa a tela de login
+        for widget in self.master.winfo_children():
+            widget.destroy()
 
-# Variáveis para controle das janelas
-acclaimed_books_window = None
-best_selling_books_window = None
+        # Título
+        self.label = tk.Label(self.master, text="Bem-vinda à Biblioteca", font=("Arial", 24))
+        self.label.pack(pady=20)
 
-# Livros aclamados
-def list_acclaimed_books(conn):
-    global acclaimed_books_window
-    if acclaimed_books_window is None or not acclaimed_books_window.winfo_exists():
-        livros_aclamados = [
-            ("O Sol é para Todos", "Harper Lee", 1960, "Ficção", "Uma história sobre a injustiça racial no sul dos EUA."),
-            ("Cem Anos de Solidão", "Gabriel García Márquez", 1967, "Ficção", "A história da família Buendía em Macondo, uma aldeia mágica."),
-            ("1984", "George Orwell", 1949, "Ficção Científica", "Uma distopia sobre um regime totalitário que controla tudo."),
-            ("Orgulho e Preconceito", "Jane Austen", 1813, "Romance", "A história de Elizabeth Bennet e seu relacionamento com Mr. Darcy."),
-            ("A Guerra dos Tronos", "George R.R. Martin", 1996, "Fantasia", "A luta pelo poder nos Sete Reinos de Westeros."),
-            ("O Grande Gatsby", "F. Scott Fitzgerald", 1925, "Ficção", "A vida extravagante de Jay Gatsby nos anos 1920."),
-            ("A Menina que Roubava Livros", "Markus Zusak", 2005, "Ficção", "Uma história narrada pela Morte durante a Segunda Guerra Mundial."),
-            ("O Alquimista", "Paulo Coelho", 1988, "Ficção", "A jornada de um jovem pastor em busca de seu destino."),
-            ("Dom Quixote", "Miguel de Cervantes", 1605, "Ficção", "A história de um homem que se torna um cavaleiro andante."),
-            ("A Revolução dos Bichos", "George Orwell", 1945, "Ficção", "Uma sátira sobre a corrupção do socialismo na União Soviética."),
-        ]
-        display_livros(livros_aclamados, "Livros Aclamados")
-        acclaimed_books_window = list_window
+        # Menu
+        self.menu_frame = tk.Frame(self.master)
+        self.menu_frame.pack(pady=10)
 
-# Livros mais vendidos
-def list_best_selling_books(conn):
-    global best_selling_books_window
-    if best_selling_books_window is None or not best_selling_books_window.winfo_exists():
-        livros_vendidos = [
-            ("Harry Potter e a Pedra Filosofal", "J.K. Rowling", 1997, "Fantasia", "Um jovem bruxo descobre seu destino em Hogwarts."),
-            ("O Senhor dos Anéis: A Sociedade do Anel", "J.R.R. Tolkien", 1954, "Fantasia", "A jornada de Frodo para destruir um anel maligno."),
-            ("O Código Da Vinci", "Dan Brown", 2003, "Thriller", "Uma caça ao tesouro que revela segredos da história."),
-            ("A Culpa é das Estrelas", "John Green", 2012, "Romance", "A história de amor entre dois adolescentes com câncer."),
-            ("O Hobbit", "J.R.R. Tolkien", 1937, "Fantasia", "A aventura de Bilbo Bolseiro em uma jornada épica."),
-            ("Cinquenta Tons de Cinza", "E.L. James", 2011, "Romance", "Um relacionamento complicado entre Anastasia e Christian."),
-            ("O Senhor dos Anéis: As Duas Torres", "J.R.R. Tolkien", 1954, "Fantasia", "A continuação da jornada de Frodo e Sam."),
-            ("O Senhor dos Anéis: O Retorno do Rei", "J.R.R. Tolkien", 1955, "Fantasia", "O clímax da luta contra Sauron."),
-            ("O Diário de Anne Frank", "Anne Frank", 1947, "Biografia", "O diário de uma jovem judia durante a Segunda Guerra Mundial."),
-            ("A Cabana", "William P. Young", 2007, "Ficção", "Um homem enfrenta sua dor em um encontro com Deus."),
-        ]
-        display_livros(livros_vendidos, "Livros Mais Vendidos")
-        best_selling_books_window = list_window
+        # Adicionar Livro
+        self.btn_add_book = tk.Button(self.menu_frame, text="📚 Adicionar Livro", command=self.add_book, width=20, height=2, font=("Arial", 12))
+        self.btn_add_book.pack(pady=5)
 
-def remove_livro(conn, livro_id):
-    cursor = conn.cursor()
-    try:
-        cursor.execute('DELETE FROM Livros WHERE ID = ?', (livro_id,))
-        conn.commit()
-        messagebox.showinfo("Sucesso", "Livro removido com sucesso!")
-    except sqlite3.Error as e:
-        messagebox.showerror("Erro", str(e))
+        # Ver Todos os Livros
+        self.btn_view_books = tk.Button(self.menu_frame, text="📖 Ver Todos os Livros", command=self.view_books, width=20, height=2, font=("Arial", 12))
+        self.btn_view_books.pack(pady=5)
 
-def update_livro(conn, livro_id, titulo, autor_id, ano_publicacao, genero, sinopse):
-    cursor = conn.cursor()
-    try:
-        cursor.execute('''UPDATE Livros SET Titulo = ?, AutorID = ?, AnoPublicacao = ?, Genero = ?, Sinopse = ? WHERE ID = ?''',
-                       (titulo, autor_id, ano_publicacao, genero, sinopse, livro_id))
-        conn.commit()
-        messagebox.showinfo("Sucesso", "Livro atualizado com sucesso!")
-    except sqlite3.Error as e:
-        messagebox.showerror("Erro", str(e))
+        # Remover Livro
+        self.btn_remove_book = tk.Button(self.menu_frame, text="❌ Remover Livro", command=self.remove_book, width=20, height=2, font=("Arial", 12))
+        self.btn_remove_book.pack(pady=5)
 
-def main_ui(conn):
-    window = tk.Tk()
-    window.title("Biblioteca")
-    window.geometry("600x500")
+        # Buscar Livro
+        self.btn_search_book = tk.Button(self.menu_frame, text="🔍 Buscar Livro", command=self.search_book, width=20, height=2, font=("Arial", 12))
+        self.btn_search_book.pack(pady=5)
 
-    main_frame = tk.Frame(window)
-    main_frame.pack(padx=20, pady=20)
+        # Alugar Livro
+        self.btn_borrow_book = tk.Button(self.menu_frame, text="📦 Alugar Livro", command=self.borrow_book, width=20, height=2, font=("Arial", 12))
+        self.btn_borrow_book.pack(pady=5)
 
-    tk.Label(main_frame, text="Bem-Vindo à Biblioteca", font=("Arial", 18)).pack(pady=10)
+        # Devolver Livro
+        self.btn_return_book = tk.Button(self.menu_frame, text="🔄 Devolver Livro", command=self.return_book, width=20, height=2, font=("Arial", 12))
+        self.btn_return_book.pack(pady=5)
 
-    # Botões para adicionar livro, autor, etc.
-    ttk.Button(main_frame, text="Adicionar Livro", command=lambda: add_livro_ui(conn)).pack(pady=5, fill='x')
-    ttk.Button(main_frame, text="Adicionar Autor", command=lambda: add_autor_ui(conn)).pack(pady=5, fill='x')
-    ttk.Button(main_frame, text="Livros Aclamados", command=lambda: list_acclaimed_books(conn)).pack(pady=5, fill='x')
-    ttk.Button(main_frame, text="Livros Mais Vendidos", command=lambda: list_best_selling_books(conn)).pack(pady=5, fill='x')
-    ttk.Button(main_frame, text="Remover Livro", command=lambda: remove_livro_ui(conn)).pack(pady=5, fill='x')
-    ttk.Button(main_frame, text="Atualizar Livro", command=lambda: update_livro_ui(conn)).pack(pady=5, fill='x')
+        # Ver Livros Emprestados
+        self.btn_view_borrowed = tk.Button(self.menu_frame, text="📜 Ver Livros Emprestados", command=self.view_borrowed_books, width=20, height=2, font=("Arial", 12))
+        self.btn_view_borrowed.pack(pady=5)
 
-def add_livro_ui(conn):
-    window = tk.Toplevel()
-    window.title("Adicionar Livro")
-    window.geometry("300x400")
+        # Cadastrar Usuário
+        self.btn_register = tk.Button(self.menu_frame, text="📝 Cadastrar Usuário", command=self.register, width=20, height=2, font=("Arial", 12))
+        self.btn_register.pack(pady=5)
 
-    tk.Label(window, text="Adicionar Livro", font=("Arial", 14)).pack(pady=10)
+        # Sair
+        self.btn_exit = tk.Button(self.master, text="🚪 Sair", command=self.sair, width=20, height=2, font=("Arial", 12))
+        self.btn_exit.pack(pady=20)
 
-    tk.Label(window, text="Título:").pack()
-    entry_titulo = tk.Entry(window)
-    entry_titulo.pack(pady=5)
+    def add_book(self):
+        # Janela de diálogo para adicionar informações do livro
+        add_book_window = tk.Toplevel(self.master)
+        add_book_window.title("Adicionar Livro")
+        add_book_window.geometry("400x400")
 
-    tk.Label(window, text="ID do Autor:").pack()
-    entry_autor_id = tk.Entry(window)
-    entry_autor_id.pack(pady=5)
+        # Label e entrada para o título do livro
+        label_title = tk.Label(add_book_window, text="Título do Livro:", font=("Arial", 12))
+        label_title.pack(pady=5)
+        entry_title = tk.Entry(add_book_window, font=("Arial", 12))
+        entry_title.pack(pady=5)
 
-    tk.Label(window, text="Ano de Publicação:").pack()
-    entry_ano = tk.Entry(window)
-    entry_ano.pack(pady=5)
+        # Label e entrada para o autor
+        label_author = tk.Label(add_book_window, text="Autor:", font=("Arial", 12))
+        label_author.pack(pady=5)
+        entry_author = tk.Entry(add_book_window, font=("Arial", 12))
+        entry_author.pack(pady=5)
 
-    tk.Label(window, text="Gênero:").pack()
-    entry_genero = tk.Entry(window)
-    entry_genero.pack(pady=5)
+        # Label e entrada para o gênero
+        label_genre = tk.Label(add_book_window, text="Gênero:", font=("Arial", 12))
+        label_genre.pack(pady=5)
+        entry_genre = tk.Entry(add_book_window, font=("Arial", 12))
+        entry_genre.pack(pady=5)
 
-    tk.Label(window, text="Sinopse:").pack()
-    entry_sinopse = tk.Entry(window)
-    entry_sinopse.pack(pady=5)
+        # Label e entrada para a data de lançamento
+        label_release = tk.Label(add_book_window, text="Data de Lançamento:", font=("Arial", 12))
+        label_release.pack(pady=5)
+        entry_release = tk.Entry(add_book_window, font=("Arial", 12))
+        entry_release.pack(pady=5)
 
-    ttk.Button(window, text="Adicionar Livro", command=lambda: add_livro(conn, entry_titulo.get(), entry_autor_id.get(), entry_ano.get(), entry_genero.get(), entry_sinopse.get())).pack(pady=10)
+        # Label e entrada para a sinopse
+        label_synopsis = tk.Label(add_book_window, text="Sinopse:", font=("Arial", 12))
+        label_synopsis.pack(pady=5)
+        entry_synopsis = tk.Text(add_book_window, height=4, font=("Arial", 12))
+        entry_synopsis.pack(pady=5)
 
-def add_autor_ui(conn):
-    window = tk.Toplevel()
-    window.title("Adicionar Autor")
-    window.geometry("300x200")
+        # Função que será chamada ao confirmar
+        def confirmar_adicao():
+            title = entry_title.get().strip()
+            author = entry_author.get().strip()
+            genre = entry_genre.get().strip()
+            release = entry_release.get().strip()
+            synopsis = entry_synopsis.get("1.0", tk.END).strip()
 
-    tk.Label(window, text="Adicionar Autor", font=("Arial", 14)).pack(pady=10)
+            if title and author and genre and release and synopsis:
+                # Armazenar as informações do livro como um dicionário
+                book_info = {"Título": title, "Autor": author, "Gênero": genre, "Data de Lançamento": release, "Sinopse": synopsis}
+                self.books.append(book_info)
+                messagebox.showinfo("Sucesso", f"Livro '{title}' adicionado com sucesso!")
+                add_book_window.destroy()
+            else:
+                messagebox.showerror("Erro", "Todos os campos devem ser preenchidos.")
 
-    tk.Label(window, text="Nome:").pack()
-    entry_nome = tk.Entry(window)
-    entry_nome.pack(pady=5)
+        # Botão para confirmar a adição do livro
+        btn_confirm = tk.Button(add_book_window, text="Adicionar Livro", command=confirmar_adicao, font=("Arial", 12))
+        btn_confirm.pack(pady=20)
 
-    ttk.Button(window, text="Adicionar Autor", command=lambda: add_autor(conn, entry_nome.get())).pack(pady=10)
+    def view_books(self):
+        if not self.books:
+            messagebox.showinfo("Livros", "Nenhum livro cadastrado.")
+        else:
+            # Criar uma janela com scrolledtext para exibir os livros
+            self.create_info_window("Lista de Livros", self.books)
 
-def remove_livro_ui(conn):
-    window = tk.Toplevel()
-    window.title("Remover Livro")
-    window.geometry("300x200")
+    def remove_book(self):
+        book_title = simpledialog.askstring("Remover Livro", "Digite o título do livro que deseja remover:")
+        if not book_title:
+            return
+        for book in self.books:
+            if book["Título"].lower() == book_title.lower():
+                self.books.remove(book)
+                messagebox.showinfo("Remover Livro", f"Livro '{book_title}' removido com sucesso.")
+                return
+        messagebox.showerror("Erro", f"Livro '{book_title}' não encontrado.")
 
-    tk.Label(window, text="Remover Livro", font=("Arial", 14)).pack(pady=10)
+    def search_book(self):
+        search_title = simpledialog.askstring("Buscar Livro", "Digite o título do livro:")
+        if not search_title:
+            return
+        found_books = [book for book in self.books if search_title.lower() in book["Título"].lower()]
+        if not found_books:
+            messagebox.showinfo("Buscar Livro", f"Nenhum livro encontrado com o título '{search_title}'.")
+        else:
+            # Criar uma janela com scrolledtext para exibir os resultados
+            self.create_info_window("Resultado da Busca", found_books)
 
-    tk.Label(window, text="ID do Livro:").pack()
-    entry_id = tk.Entry(window)
-    entry_id.pack(pady=5)
+    def borrow_book(self):
+        if not self.books:
+            messagebox.showinfo("Livros", "Nenhum livro cadastrado.")
+            return
+        book_title = simpledialog.askstring("Alugar Livro", "Digite o título do livro que deseja alugar:")
+        for book in self.books:
+            if book["Título"].lower() == book_title.lower():
+                self.books.remove(book)
+                self.borrowed_books.append(book)
+                messagebox.showinfo("Sucesso", f"Livro '{book_title}' alugado com sucesso.")
+                return
+        messagebox.showerror("Erro", f"Livro '{book_title}' não encontrado.")
 
-    ttk.Button(window, text="Remover Livro", command=lambda: remove_livro(conn, entry_id.get())).pack(pady=10)
+    def return_book(self):
+        if not self.borrowed_books:
+            messagebox.showinfo("Livros Emprestados", "Nenhum livro emprestado.")
+            return
+        book_title = simpledialog.askstring("Devolver Livro", "Digite o título do livro que deseja devolver:")
+        for book in self.borrowed_books:
+            if book["Título"].lower() == book_title.lower():
+                self.borrowed_books.remove(book)
+                self.books.append(book)
+                messagebox.showinfo("Sucesso", f"Livro '{book_title}' devolvido com sucesso.")
+                return
+        messagebox.showerror("Erro", f"Livro '{book_title}' não encontrado.")
 
-def update_livro_ui(conn):
-    window = tk.Toplevel()
-    window.title("Atualizar Livro")
-    window.geometry("300x400")
+    def view_borrowed_books(self):
+        if not self.borrowed_books:
+            messagebox.showinfo("Livros Emprestados", "Nenhum livro emprestado.")
+        else:
+            # Criar uma janela com scrolledtext para exibir os livros emprestados
+            self.create_info_window("Livros Emprestados", self.borrowed_books)
 
-    tk.Label(window, text="Atualizar Livro", font=("Arial", 14)).pack(pady=10)
+    def register(self):
+        # Janela para cadastro de novo usuário
+        username = simpledialog.askstring("Cadastrar Usuário", "Digite o nome de usuário:")
+        if not username:
+            return
+        password = simpledialog.askstring("Cadastrar Usuário", "Digite a senha:", show="*")
+        if not password:
+            return
+        usuarios = carregar_usuarios()
+        if username in usuarios:
+            messagebox.showerror("Erro", "Usuário já cadastrado.")
+        else:
+            salvar_usuario(username, password)
+            messagebox.showinfo("Sucesso", f"Usuário '{username}' cadastrado com sucesso.")
 
-    tk.Label(window, text="ID do Livro:").pack()
-    entry_id = tk.Entry(window)
-    entry_id.pack(pady=5)
+    def sair(self):
+        self.master.destroy()
 
-    tk.Label(window, text="Novo Título:").pack()
-    entry_titulo = tk.Entry(window)
-    entry_titulo.pack(pady=5)
+    def create_info_window(self, title, books_list):
+        info_window = tk.Toplevel(self.master)
+        info_window.title(title)
+        info_window.geometry("600x400")
 
-    tk.Label(window, text="Novo ID do Autor:").pack()
-    entry_autor_id = tk.Entry(window)
-    entry_autor_id.pack(pady=5)
+        text_area = scrolledtext.ScrolledText(info_window, wrap=tk.WORD, font=("Arial", 12))
+        text_area.pack(pady=10, padx=10, fill="both", expand=True)
 
-    tk.Label(window, text="Novo Ano de Publicação:").pack()
-    entry_ano = tk.Entry(window)
-    entry_ano.pack(pady=5)
+        for book in books_list:
+            text_area.insert(tk.END, f"Título: {book['Título']}\n")
+            text_area.insert(tk.END, f"Autor: {book['Autor']}\n")
+            text_area.insert(tk.END, f"Gênero: {book['Gênero']}\n")
+            text_area.insert(tk.END, f"Data de Lançamento: {book['Data de Lançamento']}\n")
+            text_area.insert(tk.END, f"Sinopse: {book['Sinopse']}\n")
+            text_area.insert(tk.END, "-"*50 + "\n")
 
-    tk.Label(window, text="Novo Gênero:").pack()
-    entry_genero = tk.Entry(window)
-    entry_genero.pack(pady=5)
-
-    tk.Label(window, text="Nova Sinopse:").pack()
-    entry_sinopse = tk.Entry(window)
-    entry_sinopse.pack(pady=5)
-
-    ttk.Button(window, text="Atualizar Livro", command=lambda: update_livro(conn, entry_id.get(), entry_titulo.get(), entry_autor_id.get(), entry_ano.get(), entry_genero.get(), entry_sinopse.get())).pack(pady=10)
+        text_area.config(state=tk.DISABLED)
 
 if __name__ == "__main__":
-    conn = create_connection("biblioteca.db")
-    create_tables(conn)
-    main_ui(conn)
-    tk.mainloop()
+    root = tk.Tk()
+    biblioteca = Biblioteca(root)
+    root.mainloop()
