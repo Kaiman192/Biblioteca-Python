@@ -24,7 +24,9 @@ class Biblioteca:
         master.geometry("800x600")
 
         # Inicialização
-        self.books = []
+        self.books = [
+            {"Título": "1984", "Autor": "George Orwell", "Gênero": "Distopia", "Data de Lançamento": "1949", "Sinopse": "Uma visão aterrorizante de um futuro totalitário."}
+        ]  # Livro fixo na lista de livros
         self.borrowed_books = []
 
         # Tela inicial de login
@@ -48,7 +50,7 @@ class Biblioteca:
         frame_buttons.pack(pady=10)
 
         tk.Button(frame_buttons, text="Login", command=self.login, width=15, font=("Arial", 12)).grid(row=0, column=0, padx=5)
-        tk.Button(frame_buttons, text="Registre-se", command=self.register_and_login, width=15, font=("Arial", 12)).grid(row=0, column=1, padx=5)
+        tk.Button(frame_buttons, text="Registrar", command=self.register_screen, width=15, font=("Arial", 12)).grid(row=0, column=1, padx=5)
 
     def login(self):
         username = self.entry_user.get()
@@ -60,24 +62,42 @@ class Biblioteca:
         else:
             messagebox.showerror("Erro", "Nome de usuário ou senha incorretos.")
 
-    def register_and_login(self):
-        username = simpledialog.askstring("Registro", "Digite o nome de usuário:")
-        if not username:
-            return
-        password = simpledialog.askstring("Registro", "Digite a senha:", show="*")
-        if not password:
+    def register_screen(self):
+        for widget in self.master.winfo_children():
+            widget.destroy()
+
+        tk.Label(self.master, text="Registrar Novo Usuário", font=("Arial", 24)).pack(pady=20)
+
+        tk.Label(self.master, text="Nome de Usuário:", font=("Arial", 12)).pack(pady=5)
+        self.entry_new_user = tk.Entry(self.master, font=("Arial", 12))
+        self.entry_new_user.pack(pady=5)
+
+        tk.Label(self.master, text="Senha:", font=("Arial", 12)).pack(pady=5)
+        self.entry_new_pass = tk.Entry(self.master, font=("Arial", 12), show="*")
+        self.entry_new_pass.pack(pady=5)
+
+        tk.Button(self.master, text="Registrar", command=self.register_user, width=15, font=("Arial", 12)).pack(pady=10)
+
+        tk.Button(self.master, text="Voltar", command=self.login_screen, width=15, font=("Arial", 12)).pack(pady=10)
+
+    def register_user(self):
+        username = self.entry_new_user.get()
+        password = self.entry_new_pass.get()
+
+        if not username or not password:
+            messagebox.showerror("Erro", "Preencha todos os campos.")
             return
 
         usuarios = carregar_usuarios()
+
         if username in usuarios:
             messagebox.showerror("Erro", "Usuário já existe.")
         else:
             salvar_usuario(username, password)
-            messagebox.showinfo("Registro", f"Usuário '{username}' registrado com sucesso!")
-            self.entry_user.delete(0, tk.END)
-            self.entry_pass.delete(0, tk.END)
-            self.entry_user.insert(0, username)
-            self.entry_pass.insert(0, password)
+            messagebox.showinfo("Sucesso", f"Usuário '{username}' registrado com sucesso!")
+            self.entry_new_user.delete(0, tk.END)
+            self.entry_new_pass.delete(0, tk.END)
+            self.login_screen()
 
     def main_screen(self):
         for widget in self.master.winfo_children():
