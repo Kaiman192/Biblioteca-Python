@@ -104,30 +104,52 @@ class Biblioteca:
         tk.Button(self.master, text="🚪 Sair", command=self.master.destroy, width=20, height=2, font=("Arial", 12)).pack(pady=20)
 
     def add_book(self):
-        title = simpledialog.askstring("Adicionar Livro", "Título do livro:")
-        if not title:
-            return
-        author = simpledialog.askstring("Adicionar Livro", "Autor:")
-        if not author:
-            return
-        genre = simpledialog.askstring("Adicionar Livro", "Gênero:")
-        if not genre:
-            return
-        release = simpledialog.askstring("Adicionar Livro", "Data de lançamento:")
-        if not release:
-            return
-        synopsis = simpledialog.askstring("Adicionar Livro", "Sinopse:")
-        if not synopsis:
-            return
+        def salvar_livro():
+            title = entry_title.get()
+            author = entry_author.get()
+            genre = entry_genre.get()
+            release = entry_release.get()
+            synopsis = text_synopsis.get("1.0", tk.END).strip()
 
-        self.books.append({
-            "Título": title,
-            "Autor": author,
-            "Gênero": genre,
-            "Data de Lançamento": release,
-            "Sinopse": synopsis,
-        })
-        messagebox.showinfo("Sucesso", f"Livro '{title}' adicionado com sucesso!")
+            if not (title and author and genre and release and synopsis):
+                messagebox.showerror("Erro", "Todos os campos devem ser preenchidos.")
+                return
+
+            self.books.append({
+                "Título": title,
+                "Autor": author,
+                "Gênero": genre,
+                "Data de Lançamento": release,
+                "Sinopse": synopsis,
+            })
+            messagebox.showinfo("Sucesso", f"Livro '{title}' adicionado com sucesso!")
+            add_window.destroy()
+
+        add_window = tk.Toplevel(self.master)
+        add_window.title("Adicionar Livro")
+        add_window.geometry("500x500")
+
+        tk.Label(add_window, text="Título:", font=("Arial", 12)).pack(pady=5)
+        entry_title = tk.Entry(add_window, font=("Arial", 12))
+        entry_title.pack(pady=5)
+
+        tk.Label(add_window, text="Autor:", font=("Arial", 12)).pack(pady=5)
+        entry_author = tk.Entry(add_window, font=("Arial", 12))
+        entry_author.pack(pady=5)
+
+        tk.Label(add_window, text="Gênero:", font=("Arial", 12)).pack(pady=5)
+        entry_genre = tk.Entry(add_window, font=("Arial", 12))
+        entry_genre.pack(pady=5)
+
+        tk.Label(add_window, text="Data de Lançamento:", font=("Arial", 12)).pack(pady=5)
+        entry_release = tk.Entry(add_window, font=("Arial", 12))
+        entry_release.pack(pady=5)
+
+        tk.Label(add_window, text="Sinopse:", font=("Arial", 12)).pack(pady=5)
+        text_synopsis = tk.Text(add_window, font=("Arial", 12), height=5)
+        text_synopsis.pack(pady=5)
+
+        tk.Button(add_window, text="Salvar", command=salvar_livro, font=("Arial", 12)).pack(pady=10)
 
     def view_books(self):
         if not self.books:
